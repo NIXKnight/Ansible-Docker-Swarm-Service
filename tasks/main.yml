@@ -1,0 +1,95 @@
+---
+# tasks file for Ansible-Docker-Swarm-Service
+- name: Check if Swarm Service is Running
+  community.docker.docker_swarm_service_info:
+    name: "{{ DOCKER_SWARM_SERVICE_NAME }}"
+  register: docker_swarm_service
+  tags:
+    - "install"
+    - "update"
+
+- name: debug
+  debug:
+    var: docker_swarm_service
+
+- name: Check for Docker Volume(s)
+  community.docker.docker_volume_info:
+    name: "{{ item }}"
+  register: docker_volume
+  with_items: "{{ DOCKER_SWARM_SERVICE_VOLUMES }}"
+  when: DOCKER_SWARM_SERVICE_VOLUMES is defined and DOCKER_SWARM_SERVICE_VOLUMES | length > 0
+  tags:
+    - "install"
+
+- name: Write Docker Swarm Service Config
+  community.docker.docker_config:
+    name: "{{ item.name }}"
+    data: "{{ item.data }}"
+    data_is_b64: "{{ item.data_is_b64 }}"
+    state: present
+  with_items: "{{ DOCKER_SWARM_SERVICE_CONFIG }}"
+  when: DOCKER_SWARM_SERVICE_CONFIG is defined and DOCKER_SWARM_SERVICE_CONFIG is iterable
+
+- name: Write Docker Swarm Service Secrets
+  community.docker.docker_secret:
+    name: "{{ item.name }}"
+    data: "{{ item.data }}"
+    data_is_b64: "{{ item.data_is_b64 }}"
+    state: present
+  with_items: "{{ DOCKER_SWARM_SERVICE_SECRETS }}"
+  when: DOCKER_SWARM_SERVICE_SECRETS is defined and DOCKER_SWARM_SERVICE_SECRETS is iterable
+
+- name: Stop and Remove Swarm Service
+  community.docker.docker_swarm_service:
+    name: "{{ DOCKER_SWARM_SERVICE_NAME }}"
+    state: "absent"
+  when: docker_swarm_service.exists
+  tags:
+    - "install"
+    - "update"
+
+- name: Remove Container Image
+  community.docker.docker_image:
+    name: "{{ DOCKER_SWARM_SERVICE_CONTAINER_IMAGE }}"
+    state: absent
+  when: docker_swarm_service.exists and docker_swarm_service.service.Spec.TaskTemplate.ContainerSpec.Image != DOCKER_SWARM_SERVICE_CONTAINER_IMAGE
+  tags:
+    - "install"
+    - "update"
+
+- name: Create Docker Volume
+  community.docker.docker_volume:
+    name: "{{ item }}"
+  with_items: "{{ DOCKER_SWARM_SERVICE_VOLUMES }}"
+  when: DOCKER_SWARM_SERVICE_VOLUMES is defined and DOCKER_SWARM_SERVICE_VOLUMES is iterable
+  tags:
+    - "install"
+
+- name: Pull Container Image {{ DOCKER_SWARM_SERVICE_CONTAINER_IMAGE }}
+  community.docker.docker_image:
+    name: "{{ DOCKER_SWARM_SERVICE_CONTAINER_IMAGE }}"
+    source: pull
+  when: docker_swarm_service.exists and docker_swarm_service.service.Spec.TaskTemplate.ContainerSpec.Image != DOCKER_SWARM_SERVICE_CONTAINER_IMAGE
+  tags:
+    - "install"
+    - "update"
+
+- name: Start Docker Swarm Service
+  community.docker.docker_swarm_service:
+    name: "{{ DOCKER_SWARM_SERVICE_NAME }}"
+    hostname: "{{ DOCKER_SWARM_SERVICE_NAME }}"
+    image: "{{ DOCKER_SWARM_SERVICE_CONTAINER_IMAGE }}"
+    state: present
+    restart_config:
+      condition: "{{ DOCKER_SWARM_SERVICE_RESTART_CONDITION }}"
+      delay: "{{ DOCKER_SWARM_SERVICE_RESTART_DELAY }}"
+      max_attempts: "{{ DOCKER_SWARM_SERVICE_RESTART_MAX_ATTEMPTS }}"
+      window: "{{ DOCKER_SWARM_SERVICE_RESTART_WINDOW }}"
+    networks: "{{ DOCKER_SWARM_SERVICE_NETWORKS }}"
+    mounts: "{{ DOCKER_SWARM_SERVICE_VOLUME_MAPPING }}"
+    env: "{{ DOCKER_SWARM_SERVICE_ENVIRONMENT_VARS }}"
+    configs: "{{ DOCKER_SWARM_SERVICE_CONFIG_MAPPINGS }}"
+    secrets: "{{ DOCKER_SWARM_SERVICE_SECRETS_MAPPINGS }}"
+  tags:
+    - "install"
+    - "update"

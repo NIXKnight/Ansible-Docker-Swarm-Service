@@ -1,0 +1,14 @@
+dependencies: []
+galaxy_info:
+  author: Saad Ali
+  description: Ansible role for deploying a Docker Swarm Service.
+  license: license (MIT)
+  min_ansible_version: 2.10
+  platforms:
+  - name: Debian
+    versions:
+      - bullseye
+  galaxy_tags:
+    - docker
+    - container
+    - swarm
